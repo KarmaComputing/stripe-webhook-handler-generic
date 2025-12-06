@@ -65,3 +65,10 @@ jobs:
         run: |
           set -x
           curl ${{ secrets.HOSTNAME }}
+
+      - name: Setup upterm session
+        uses: owenthereal/action-upterm@v1
+        if: ${{ failure() }}
+        with:
+          ## Shut down the server if unconnected after 5 minutes.
+          wait-timeout-minutes: 5
