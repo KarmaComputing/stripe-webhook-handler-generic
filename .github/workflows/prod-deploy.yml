@@ -1,0 +1,67 @@
+name: prod-container-hosting-stripe-webhook-handler
+
+on:
+  push:
+    branches: [ main ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  deploy-prod:
+    name: Deploy to prod
+    runs-on: ubuntu-latest
+    environment: prod
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Prepare runner with ssh keys
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          DOKKU_HOST: ${{ secrets.DOKKU_HOST }}
+        run: |
+          set -x
+          mkdir -p ~/.ssh
+          eval `ssh-agent -s`
+          ssh-add - <<< "$SSH_PRIVATE_KEY"
+          ssh-keyscan $DOKKU_HOST >> ~/.ssh/known_hosts
+ 
+      - name: Create dokku app if doesn't already exist using dokku apps:create
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          DOKKU_HOST: ${{ secrets.DOKKU_HOST }}
+        run: |
+          set -x
+          eval `ssh-agent -s`
+          ssh-add - <<< "$SSH_PRIVATE_KEY"
+          echo Creating dokku app prod-container-hosting-stripe-webhook-handler
+          ssh dokku@$DOKKU_HOST -C "dokku apps:create prod-container-hosting-stripe-webhook-handler" | true
+          echo The url is set by $HOSTNAME in secrets
+          ssh dokku@$DOKKU_HOST -C "dokku config:set --no-restart prod-container-hosting-stripe-webhook-handler STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}"
+          ssh dokku@$DOKKU_HOST -C "dokku config:set --no-restart prod-container-hosting-stripe-webhook-handler STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY}}"
+          ssh dokku@$DOKKU_HOST -C "dokku config:set --no-restart prod-container-hosting-stripe-webhook-handler STRIPE_BUY_BUTTON_ID=${{ secrets.STRIPE_BUY_BUTTON_ID}}"
+          ssh dokku@$DOKKU_HOST -C "dokku config:set --no-restart prod-container-hosting-stripe-webhook-handler WEBHOOK_CLIENT_REFERENCE_ID_LOG_FILE_FULL_PATH=${{ secrets.WEBHOOK_CLIENT_REFERENCE_ID_LOG_FILE_FULL_PATH}}"
+          ssh dokku@$DOKKU_HOST -C "dokku config:set --no-restart prod-container-hosting-stripe-webhook-handler PYTHON_LOG_LEVEL=${{ secrets.PYTHON_LOG_LEVEL }}"
+          ssh dokku@$DOKKU_HOST -C "dokku ps:set prod-container-hosting-stripe-webhook-handler restart-policy unless-stopped"
+          ssh dokku@$DOKKU_HOST -C "dokku ps:rebuild prod-container-hosting-stripe-webhook-handler"
+
+      - id: deploy
+        name: Deploy to dokku
+        uses: idoberko2/dokku-deploy-github-action@v1
+        with:
+            ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+            dokku-host: ${{ secrets.DOKKU_HOST }}
+            app-name: 'prod-container-hosting-stripe-webhook-handler'
+            git-push-flags: --force
+
+      - id: smoke-test
+        name: Smoke test
+        run: |
+          set -x
+          curl ${{ secrets.HOSTNAME }}
