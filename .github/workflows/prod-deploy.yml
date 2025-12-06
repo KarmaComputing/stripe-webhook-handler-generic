@@ -49,6 +49,8 @@ jobs:
           ssh dokku@$DOKKU_HOST -C "dokku config:set --no-restart prod-container-hosting-stripe-webhook-handler WEBHOOK_CLIENT_REFERENCE_ID_LOG_FILE_FULL_PATH=${{ secrets.WEBHOOK_CLIENT_REFERENCE_ID_LOG_FILE_FULL_PATH}}"
           ssh dokku@$DOKKU_HOST -C "dokku config:set --no-restart prod-container-hosting-stripe-webhook-handler PYTHON_LOG_LEVEL=${{ secrets.PYTHON_LOG_LEVEL }}"
           ssh dokku@$DOKKU_HOST -C "dokku ps:set prod-container-hosting-stripe-webhook-handler restart-policy unless-stopped"
+          echo setting deploy branch to main
+          ssh dokku@$DOKKU_HOST -C "dokku git:set prod-container-hosting-stripe-webhook-handler deploy-branch main"
           ssh dokku@$DOKKU_HOST -C "dokku ps:rebuild prod-container-hosting-stripe-webhook-handler"
 
       - id: deploy
